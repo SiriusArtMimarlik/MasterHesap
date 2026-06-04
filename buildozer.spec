@@ -9,7 +9,7 @@ requirements = python3,kivy,kivymd==1.2.0,pillow
 presplash.filename = intro.png
 icon.filename = logo.png
 orientation = portrait
-fullscreen = 0
+fullscreen = 1
 android.api = 33
 android.minapi = 24
 android.ndk = 25b
