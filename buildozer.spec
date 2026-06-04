@@ -5,7 +5,7 @@ package.domain = org.siriusart
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,json
 version = 0.1
-requirements = python3,kivy==2.3.0,kivymd==1.2.0,pillow
+requirements = python3,kivy,kivymd==1.2.0,pillow
 presplash.filename = intro.png
 icon.filename = logo.png
 orientation = portrait
