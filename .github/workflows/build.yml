@@ -27,7 +27,7 @@ jobs:
           pip install buildozer Cython
 
       - name: Buildozer ile APK Üret
-        run: buildozer android debug
+        run: yes | buildozer android debug
 
       - name: APK'yı Sistemi Yükle ve Teslim Et
         uses: actions/upload-artifact@v4
