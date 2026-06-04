@@ -8,18 +8,26 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Kodları Kopyala
         uses: actions/checkout@v4
 
-      - name: Resmi Kivy Buildozer Kapsülü ile İnşa Et
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
+      - name: Python Kurulumu
+        uses: actions/setup-python@v5
         with:
-          command: buildozer android debug
-          buildozer_version: stable
+          python-version: '3.11'
+
+      - name: Gerekli Şantiye Aletlerini İndir
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libltdl-dev libffi-dev libssl-dev python3-dev zip unzip openjdk-17-jdk autoconf libtool automake
+          pip install --upgrade pip
+          pip install buildozer Cython
+
+      - name: Buildozer ile APK Üret
+        run: buildozer android debug
 
       - name: APK'yı Sistemi Yükle ve Teslim Et
         uses: actions/upload-artifact@v4
