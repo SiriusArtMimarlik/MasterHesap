@@ -16,7 +16,6 @@ from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
 from kivy.uix.image import Image
 from kivy.clock import Clock
 
-Window.size = (500, 900)
 FIYAT_DOSYASI = "masterhesap_tam_hafiza.json"
 
 KV = '''
