@@ -366,128 +366,138 @@ class MasterHesapApp(MDApp):
     def on_start(self):
         self.verileri_yukle()
         self.root.transition = FadeTransition()
-        ana_liste = self.root.ids.ana_liste
+        self.ana_liste = self.root.ids.ana_liste
         self.arama_sozlugu = {}
 
-        # --- ARAYÜZÜ ARKA PLANDA ÇİZİYORUZ (KİLİTLENMEYE KARŞI KORUMALI) ---
-        for kat_adi, kalemler in self.kategoriler.items():
-            kat_kart = MDCard(orientation='vertical', padding="10dp", spacing="10dp", md_bg_color=(0.10, 0.12, 0.15, 1), radius=[10], adaptive_height=True)
+        # Kategorileri listeye çevirip tek tek işleyeceğiz (Telefon boğulmasın diye)
+        self.kat_listesi = list(self.kategoriler.items())
+        self.suanki_kat_index = 0
+        
+        # Nefes alan döngüyü başlat
+        Clock.schedule_once(self.kategori_ciz, 0.1)
 
-            # ANA KATEGORİ BAŞLIĞI (Orijinal, dokunulmamış hali)
-            kat_baslik_satiri = MDBoxLayout(orientation='horizontal', spacing="5dp", size_hint_y=None, height="40dp")
-            kat_baslik_lbl = MDLabel(text=kat_adi, theme_text_color="Custom", text_color=(0.9, 0.4, 0.1, 1), bold=True)
-            kat_btn = MDIconButton(icon="chevron-down", pos_hint={"center_y": 0.5}, theme_text_color="Custom", text_color=(0.9, 0.4, 0.1, 1))
+    def kategori_ciz(self, dt):
+        # EĞER ÇİZİLECEK KATEGORİ KALMADIYSA UYGULAMAYI AÇ
+        if self.suanki_kat_index >= len(self.kat_listesi):
+            # Kayıtlı ayarları ekrana yansıt
+            if "_fatura_kdv_" in self.kayitli_veriler:
+                self.root.ids.kdv_orani.text = str(self.kayitli_veriler["_fatura_kdv_"])
+            if "_gizli_kar_" in self.kayitli_veriler:
+                self.root.ids.kar_marji_gizli.text = str(self.kayitli_veriler["_gizli_kar_"])
+            
+            # Arka planda ilk hesaplamayı yap ve ana ekrana atla
+            self.hesapla()
+            self.root.current = "ana_ekran"
+            return
+            
+        # SADECE SIRADAKİ 1 KATEGORİYİ ÇEK
+        kat_adi, kalemler = self.kat_listesi[self.suanki_kat_index]
+        
+        kat_kart = MDCard(orientation='vertical', padding="10dp", spacing="10dp", md_bg_color=(0.10, 0.12, 0.15, 1), radius=[10], adaptive_height=True)
 
-            kat_baslik_satiri.add_widget(kat_baslik_lbl)
-            kat_baslik_satiri.add_widget(kat_btn)
-            kat_kart.add_widget(kat_baslik_satiri)
+        # ANA KATEGORİ BAŞLIĞI 
+        kat_baslik_satiri = MDBoxLayout(orientation='horizontal', spacing="5dp", size_hint_y=None, height="40dp")
+        kat_baslik_lbl = MDLabel(text=kat_adi, theme_text_color="Custom", text_color=(0.9, 0.4, 0.1, 1), bold=True)
+        kat_btn = MDIconButton(icon="chevron-down", pos_hint={"center_y": 0.5}, theme_text_color="Custom", text_color=(0.9, 0.4, 0.1, 1))
 
-            kat_icerik = MDBoxLayout(orientation='vertical', spacing="10dp", adaptive_height=True)
-            kat_alt_toplam_lbl = MDLabel(text="KATEGORİ TOPLAMI: 0.00 TL", theme_text_color="Custom", text_color=(0.2, 0.7, 1, 1), bold=True, halign="right", size_hint_y=None, height="30dp")
-            self.kategori_toplam_etiketleri[kat_adi] = kat_alt_toplam_lbl
+        kat_baslik_satiri.add_widget(kat_baslik_lbl)
+        kat_baslik_satiri.add_widget(kat_btn)
+        kat_kart.add_widget(kat_baslik_satiri)
 
-            # KATEGORİ AÇ/KAPAT
-            def ac_kategori(kart=kat_kart, icerik=kat_icerik, alt_toplam=kat_alt_toplam_lbl, btn=kat_btn):
-                if icerik not in kart.children:
-                    kart.remove_widget(alt_toplam)
-                    kart.add_widget(icerik)
-                    kart.add_widget(alt_toplam)
-                    btn.icon = "chevron-up"
+        kat_icerik = MDBoxLayout(orientation='vertical', spacing="10dp", adaptive_height=True)
+        kat_alt_toplam_lbl = MDLabel(text="KATEGORİ TOPLAMI: 0.00 TL", theme_text_color="Custom", text_color=(0.2, 0.7, 1, 1), bold=True, halign="right", size_hint_y=None, height="30dp")
+        self.kategori_toplam_etiketleri[kat_adi] = kat_alt_toplam_lbl
 
-            def kapat_kategori(kart=kat_kart, icerik=kat_icerik, btn=kat_btn):
-                if icerik in kart.children:
-                    kart.remove_widget(icerik)
-                    btn.icon = "chevron-down"
+        # KATEGORİ AÇ/KAPAT
+        def ac_kategori(kart=kat_kart, icerik=kat_icerik, alt_toplam=kat_alt_toplam_lbl, btn=kat_btn):
+            if icerik not in kart.children:
+                kart.remove_widget(alt_toplam)
+                kart.add_widget(icerik)
+                kart.add_widget(alt_toplam)
+                btn.icon = "chevron-up"
 
-            def toggle_kategori(instance, kart=kat_kart, icerik=kat_icerik, alt_toplam=kat_alt_toplam_lbl, btn=kat_btn):
-                if icerik in kart.children: kapat_kategori(kart, icerik, btn)
-                else: ac_kategori(kart, icerik, alt_toplam, btn)
+        def kapat_kategori(kart=kat_kart, icerik=kat_icerik, btn=kat_btn):
+            if icerik in kart.children:
+                kart.remove_widget(icerik)
+                btn.icon = "chevron-down"
 
-            kat_btn.bind(on_release=toggle_kategori)
-            kat_arama_adi = kat_adi.replace("İ", "i").replace("I", "ı").lower()
-            self.arama_sozlugu[kat_arama_adi] = {"widget": kat_baslik_lbl, "ac_func": ac_kategori}
+        def toggle_kategori(instance, kart=kat_kart, icerik=kat_icerik, alt_toplam=kat_alt_toplam_lbl, btn=kat_btn):
+            if icerik in kart.children: kapat_kategori(kart, icerik, btn)
+            else: ac_kategori(kart, icerik, alt_toplam, btn)
 
-            # ALT KALEMLER
-            for kalem in kalemler:
-                kalem_kutu = MDBoxLayout(orientation='vertical', spacing="5dp", padding="0dp", adaptive_height=True)
+        kat_btn.bind(on_release=toggle_kategori)
+        kat_arama_adi = kat_adi.replace("İ", "i").replace("I", "ı").lower()
+        self.arama_sozlugu[kat_arama_adi] = {"widget": kat_baslik_lbl, "ac_func": ac_kategori}
 
-                baslik_satiri = MDBoxLayout(orientation='horizontal', spacing="5dp", size_hint_y=None, height="40dp")
-                lbl_baslik = MDLabel(text=f"• {kalem['baslik']}", theme_text_color="Custom", text_color=(0.7, 0.9, 0.9, 1), font_size="14sp", bold=True, shorten=True, shorten_from="right")
-                baslik_satiri.add_widget(lbl_baslik)
+        # ALT KALEMLER
+        for kalem in kalemler:
+            kalem_kutu = MDBoxLayout(orientation='vertical', spacing="5dp", padding="0dp", adaptive_height=True)
 
-                kalem_arama_adi = kalem['baslik'].replace("İ", "i").replace("I", "ı").lower()
-                self.arama_sozlugu[kalem_arama_adi] = {"widget": lbl_baslik, "ac_func": ac_kategori}
+            baslik_satiri = MDBoxLayout(orientation='horizontal', spacing="5dp", size_hint_y=None, height="40dp")
+            lbl_baslik = MDLabel(text=f"• {kalem['baslik']}", theme_text_color="Custom", text_color=(0.7, 0.9, 0.9, 1), font_size="14sp", bold=True, shorten=True, shorten_from="right")
+            baslik_satiri.add_widget(lbl_baslik)
 
-                girdiler = kalem["g"]
-                temel_girdiler = [g for g in girdiler if "[A]" not in g and "[F]" not in g]
-                ayar_girdiler = [g for g in girdiler if "[A]" in g or "[F]" in g]
+            kalem_arama_adi = kalem['baslik'].replace("İ", "i").replace("I", "ı").lower()
+            self.arama_sozlugu[kalem_arama_adi] = {"widget": lbl_baslik, "ac_func": ac_kategori}
 
-                temel_kutu = MDBoxLayout(orientation='vertical', spacing="5dp", adaptive_height=True)
-                for g_adi in temel_girdiler:
+            girdiler = kalem["g"]
+            temel_girdiler = [g for g in girdiler if "[A]" not in g and "[F]" not in g]
+            ayar_girdiler = [g for g in girdiler if "[A]" in g or "[F]" in g]
+
+            temel_kutu = MDBoxLayout(orientation='vertical', spacing="5dp", adaptive_height=True)
+            for g_adi in temel_girdiler:
+                b_id = f"{kalem['id']}_{g_adi}"
+                kutu = MDTextField(hint_text=g_adi, mode="rectangle", size_hint_y=None, height="70dp")
+                kutu.line_color_normal = (0.5, 0.5, 0.5, 1)
+                if b_id in self.kayitli_veriler: kutu.text = str(self.kayitli_veriler[b_id])
+                self.girdi_kutu_ref[b_id] = kutu
+                temel_kutu.add_widget(kutu)
+
+            ayar_kutu = MDBoxLayout(orientation='vertical', spacing="5dp", adaptive_height=True)
+            if ayar_girdiler:
+                for g_adi in ayar_girdiler:
                     b_id = f"{kalem['id']}_{g_adi}"
-                    # YÜKSEKLİK 70DP OLDU: Tıklama alanı ferahladı!
-                    kutu = MDTextField(hint_text=g_adi, mode="rectangle", size_hint_y=None, height="70dp")
-                    kutu.line_color_normal = (0.5, 0.5, 0.5, 1)
+                    temiz_isim = g_adi.replace("[A]", "").replace("[F]", "")
+                    kutu = MDTextField(hint_text=temiz_isim, mode="rectangle", size_hint_y=None, height="70dp")
+                    if "[F]" in g_adi: kutu.line_color_normal = (0.3, 0.8, 0.3, 1)
+                    else: kutu.line_color_normal = (0.8, 0.3, 0.8, 1)
+                        
                     if b_id in self.kayitli_veriler: kutu.text = str(self.kayitli_veriler[b_id])
                     self.girdi_kutu_ref[b_id] = kutu
-                    temel_kutu.add_widget(kutu)
+                    ayar_kutu.add_widget(kutu)
 
-                ayar_kutu = MDBoxLayout(orientation='vertical', spacing="5dp", adaptive_height=True)
-                if ayar_girdiler:
-                    for g_adi in ayar_girdiler:
-                        b_id = f"{kalem['id']}_{g_adi}"
-                        temiz_isim = g_adi.replace("[A]", "").replace("[F]", "")
-                        # GİZLİ KUTULAR DA 70DP OLDU
-                        kutu = MDTextField(hint_text=temiz_isim, mode="rectangle", size_hint_y=None, height="70dp")
-                        if "[F]" in g_adi: kutu.line_color_normal = (0.3, 0.8, 0.3, 1)
-                        else: kutu.line_color_normal = (0.8, 0.3, 0.8, 1)
-                            
-                        if b_id in self.kayitli_veriler: kutu.text = str(self.kayitli_veriler[b_id])
-                        self.girdi_kutu_ref[b_id] = kutu
-                        ayar_kutu.add_widget(kutu)
+                btn_ayar = MDIconButton(icon="chevron-down", pos_hint={"center_y": 0.5})
 
-                    btn_ayar = MDIconButton(icon="chevron-down", pos_hint={"center_y": 0.5})
+                def toggle_ayarlar(instance, k_kutu=kalem_kutu, a_kutu=ayar_kutu, btn=btn_ayar):
+                    if a_kutu in k_kutu.children:
+                        k_kutu.remove_widget(a_kutu)
+                        btn.icon = "chevron-down"
+                    else:
+                        k_kutu.add_widget(a_kutu, index=1)
+                        btn.icon = "chevron-up"
 
-                    # HAYALET TIKLAMA ÇÖZÜMÜ: Kutuyu 0 yapmak yerine tamamen söküp takıyoruz
-                    def toggle_ayarlar(instance, k_kutu=kalem_kutu, a_kutu=ayar_kutu, btn=btn_ayar):
-                        if a_kutu in k_kutu.children:
-                            k_kutu.remove_widget(a_kutu)
-                            btn.icon = "chevron-down"
-                        else:
-                            k_kutu.add_widget(a_kutu, index=1)
-                            btn.icon = "chevron-up"
+                btn_ayar.bind(on_release=toggle_ayarlar)
+                baslik_satiri.add_widget(btn_ayar)
 
-                    btn_ayar.bind(on_release=toggle_ayarlar)
-                    baslik_satiri.add_widget(btn_ayar)
+            kalem_kutu.add_widget(baslik_satiri)
+            kalem_kutu.add_widget(temel_kutu)
+            
+            sonuc_satiri = MDBoxLayout(orientation='horizontal', size_hint_y=None, height="30dp")
+            lbl_detay = MDLabel(text="Hazır...", theme_text_color="Custom", text_color=(0.5, 0.7, 0.5, 1), font_size="12sp", size_hint_x=0.65)
+            lbl_ara_toplam = MDLabel(text="0.00 TL", theme_text_color="Custom", text_color=(1, 0.8, 0.2, 1), bold=True, halign="right", size_hint_x=0.35)
+            self.sonuc_etiketleri[kalem["id"]] = {"detay": lbl_detay, "toplam": lbl_ara_toplam}
+            sonuc_satiri.add_widget(lbl_detay)
+            sonuc_satiri.add_widget(lbl_ara_toplam)
+            
+            kalem_kutu.add_widget(sonuc_satiri)
+            kat_icerik.add_widget(kalem_kutu)
 
-                kalem_kutu.add_widget(baslik_satiri)
-                kalem_kutu.add_widget(temel_kutu)
-                
-                sonuc_satiri = MDBoxLayout(orientation='horizontal', size_hint_y=None, height="30dp")
-                lbl_detay = MDLabel(text="Hazır...", theme_text_color="Custom", text_color=(0.5, 0.7, 0.5, 1), font_size="12sp", size_hint_x=0.65)
-                lbl_ara_toplam = MDLabel(text="0.00 TL", theme_text_color="Custom", text_color=(1, 0.8, 0.2, 1), bold=True, halign="right", size_hint_x=0.35)
-                self.sonuc_etiketleri[kalem["id"]] = {"detay": lbl_detay, "toplam": lbl_ara_toplam}
-                sonuc_satiri.add_widget(lbl_detay)
-                sonuc_satiri.add_widget(lbl_ara_toplam)
-                
-                kalem_kutu.add_widget(sonuc_satiri)
-                kat_icerik.add_widget(kalem_kutu)
-
-            kat_kart.add_widget(kat_alt_toplam_lbl)
-            ana_liste.add_widget(kat_kart)
-
-        # --- KAYITLI TİCARİ AYARLARI EKRANA YAZDIR ---
-        if "_fatura_kdv_" in self.kayitli_veriler:
-            self.root.ids.kdv_orani.text = str(self.kayitli_veriler["_fatura_kdv_"])
-        if "_gizli_kar_" in self.kayitli_veriler:
-            self.root.ids.kar_marji_gizli.text = str(self.kayitli_veriler["_gizli_kar_"])
-
-        # Işık hızında geçiş
-        Clock.schedule_once(self.gecis_yap, 1)
-    
-
-    def gecis_yap(self, dt):
-        self.root.current = "ana_ekran"
+        kat_kart.add_widget(kat_alt_toplam_lbl)
+        self.ana_liste.add_widget(kat_kart)
+        
+        # BU KATEGORİ BİTTİ, 0.05 SANİYE NEFES AL VE BİR SONRAKİ KATEGORİYE GEÇ
+        self.suanki_kat_index += 1
+        Clock.schedule_once(self.kategori_ciz, 0.05)
 
     def ana_ekrana_don(self):
         self.root.current = "ana_ekran"
